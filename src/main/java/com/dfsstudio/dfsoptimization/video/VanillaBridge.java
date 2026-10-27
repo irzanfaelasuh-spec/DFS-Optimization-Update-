@@ -5,7 +5,6 @@ import com.dfsstudio.dfsoptimization.config.VideoSettings;
 import net.minecraft.client.CloudStatus;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
-import net.minecraft.client.ParticleStatus;
 
 import java.util.List;
 
@@ -35,8 +34,11 @@ public final class VanillaBridge {
     public static void apply(Minecraft mc, VideoSettings wanted) {
         VideoSettings s = wanted.copy().sanitize();
         Options o = mc.options;
-        o.particles().set(ParticleStatus.valueOf(s.particles));
-        o.cloudStatus().set(CloudStatus.valueOf(s.clouds));
+
+        // Infer each enum type from Minecraft's actual option value instead of importing
+        // a class name that may differ between Minecraft mapping/version sets.
+        o.particles().set(enumValue(o.particles().get(), s.particles));
+        o.cloudStatus().set(enumValue(o.cloudStatus().get(), s.clouds));
         o.entityShadows().set(s.entityShadows);
         o.renderDistance().set(s.renderDistance);
         o.simulationDistance().set(s.simulationDistance);
@@ -45,11 +47,15 @@ public final class VanillaBridge {
         o.biomeBlendRadius().set(s.biomeBlend);
         o.save();
 
-        // Verify what the game really holds now. Vanilla may reject a value (for example a
-        // 32 chunk render distance on a 32-bit Java), and that must not be hidden from the log.
+        // Verify what the game really holds now. Vanilla may reject a value, and that must
+        // not be hidden from the log.
         List<String> mismatches = s.diff(read(mc));
         if (!mismatches.isEmpty()) {
             DfsOptimizationClient.LOGGER.warn("Minecraft did not accept every requested value: {}", mismatches);
         }
+    }
+
+    private static <E extends Enum<E>> E enumValue(E currentValue, String requestedName) {
+        return Enum.valueOf(currentValue.getDeclaringClass(), requestedName);
     }
 }
